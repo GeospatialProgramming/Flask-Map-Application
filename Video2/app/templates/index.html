@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Display a map</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+<script src="https://unpkg.com/maplibre-gl@2.1.9/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@2.1.9/dist/maplibre-gl.css" rel="stylesheet" />
+<style>
+	body { margin: 0; padding: 0; }
+	#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+var map = new maplibregl.Map({
+    container: 'map', // container id
+    style: 'https://api.maptiler.com/maps/streets/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL', // style URL
+    center: [0, 0], // starting position [lng, lat]
+    zoom: 1 // starting zoom
+});
+
+map.on('load', function () {
+
+    map.addSource('airports', {
+        'type': 'vector',
+        'tiles': [
+        'http://localhost:7800/public.airports/{z}/{x}/{y}.pbf'
+        ],
+        'minzoom': 0,
+        'maxzoom': 22
+    });
+    map.addLayer(
+        {
+        'id': 'airport-data',
+        'type': 'circle',
+        'source': 'airports',
+        'source-layer': 'public.airports',
+
+        'paint': {
+            'circle-radius': 3,
+            'circle-color': 'blue'
+            }
+        },
+        'water_name_line'
+    );
+
+    var popup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false
+    });
+
+    map.on('mouseenter', 'airport-data', function (e) {
+        // Change the cursor style as a UI indicator.
+        map.getCanvas().style.cursor = 'pointer';
+
+        var coordinates = e.features[0].geometry.coordinates.slice()
+
+        var description = "";
+        for (const [key, value] of Object.entries(e.features[0].properties)) {
+          description += `${key}: ${value} <br>`;
+        }
+
+
+        // Ensure that if the map is zoomed out such that multiple
+        // copies of the feature are visible, the popup appears
+        // over the copy being pointed to.
+        while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+            coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+        }
+
+        // Populate the popup and set its coordinates
+        // based on the feature found.
+        popup.setLngLat(coordinates).setHTML(description).addTo(map);
+    });
+
+    map.on('mouseleave', 'airport-data', function () {
+        map.getCanvas().style.cursor = '';
+        popup.remove();
+    });
+
+});
+</script>
+
+</body>
+</html>
