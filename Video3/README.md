@@ -1,4 +1,4 @@
-# Flask Map Application - Video 1
+# Flask Map Application - Video 3
 
 To start the app, open up the command line and navigate to this folder. Run
 
