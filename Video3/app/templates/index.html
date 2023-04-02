@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Display a map</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+<script src="https://unpkg.com/maplibre-gl@2.1.9/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@2.1.9/dist/maplibre-gl.css" rel="stylesheet" />
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-pprn3073KE6tl6bjs2QrFaJGz5/SUsLqktiwsUTF55Jfv3qYSDhgCecCxMW52nD2" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<style>
+	body { margin: 0; padding: 0; }
+	#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+	#airportInfo {
+        position: absolute;
+        left: 4rem;
+        Top: 4rem;
+        background: rgba(255, 255, 255, .95);
+        min-height: 10rem;
+        min-width: 10rem;
+
+        padding: 1rem;
+        padding-bottom: 1.5rem;
+        border-style: solid;
+        border-color: gray;
+        border-width: 1px;
+    }
+    #search {
+        position: absolute;
+        left: 4rem;
+        bottom: 4rem;
+        background: rgba(255, 255, 255, .95);
+        min-height: 5rem;
+        width: 30rem;
+
+        padding: 1rem;
+        padding-bottom: 1.5rem;
+        border-style: solid;
+        border-color: gray;
+        border-width: 1px;
+    }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="airportInfo">
+    <b>{{selected_airport.name}}</b><br>
+
+    IATA: {{selected_airport.iata}}<br>
+    Country: {{selected_airport.country}}<br>
+    Altitude: {{selected_airport.altitude}}<br>
+    Point Count: {{row_count}}<br>
+</div>
+
+<div id="search" class="rounded">
+    <form id="airport-select" action="{{ url_for('map.index') }}" method="post" enctype="multipart/form-data">
+        <div class="row">
+
+            <label for="selectAirport" style="padding-right:1.5rem; padding-bottom:0.5rem;">Select Airport:</label>
+            <div class="col-10">
+                <select class="form-select" aria-label="Airport select" id="selectAirport" name="selectAirport">
+                  {% for airport in airports %}
+                    {% if airport.iata == selected_airport.iata %}
+                      <option value="{{airport.iata}}" selected>{{airport.name}}</option>
+                    {% else %}
+                      <option value="{{airport.iata}}">{{airport.name}}</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-2"><button type="submit" class="btn btn-primary">Go</button></div>
+        </div>
+    </form>
+
+</div>
+
+<script>
+var map = new maplibregl.Map({
+    container: 'map', // container id
+    'style': {
+          'version': 8,
+          'sources': {
+            'carto-dark': {
+              'type': 'raster',
+              'tiles': [
+                "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+              ]
+            },
+            'carto-light': {
+              'type': 'raster',
+              'tiles': [
+                "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+                "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+                "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+                "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png"
+              ]
+            },
+            'wikimedia': {
+              'type': 'raster',
+              'tiles': [
+                "https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png"
+              ]
+            }
+          },
+          'layers': [{
+            'id': 'carto-light-layer',
+            'source': 'carto-light',
+
+
+            'type': 'raster',
+            'minzoom': 0,
+            'maxzoom': 22
+          }]
+          },
+
+
+    center: [0, 0], // starting position [lng, lat]
+    zoom: 1 // starting zoom
+});
+
+map.on('load', function () {
+
+    map.addSource('flight-data', {
+        'type': 'vector',
+        tiles: ["http://localhost:7800/public.flights/{z}/{x}/{y}.pbf?limit=2000&filter=origin_airport_iata = '{{selected_airport.iata}}' OR destination_airport_iata = '{{selected_airport.iata}}'"],
+
+        'minzoom': 0,
+        'maxzoom': 22
+    });
+    map.addLayer(
+        {
+        'id': 'flight-data',
+        'type': 'circle',
+        'source': 'flight-data',
+        'source-layer': 'public.flights',
+
+        'paint': {
+            'circle-radius': 3,
+            'circle-color': 'blue'
+            }
+        },
+
+    );
+
+    var popup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false
+    });
+
+    map.on('mouseenter', 'airport-data', function (e) {
+        // Change the cursor style as a UI indicator.
+        map.getCanvas().style.cursor = 'pointer';
+
+        var coordinates = e.features[0].geometry.coordinates.slice()
+
+        var description = "";
+        for (const [key, value] of Object.entries(e.features[0].properties)) {
+          description += `${key}: ${value} <br>`;
+        }
+
+
+        // Ensure that if the map is zoomed out such that multiple
+        // copies of the feature are visible, the popup appears
+        // over the copy being pointed to.
+        while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+            coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+        }
+
+        // Populate the popup and set its coordinates
+        // based on the feature found.
+        popup.setLngLat(coordinates).setHTML(description).addTo(map);
+    });
+
+    map.on('mouseleave', 'airport-data', function () {
+        map.getCanvas().style.cursor = '';
+        popup.remove();
+    });
+
+});
+</script>
+
+</body>
+</html>
